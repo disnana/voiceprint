@@ -1,9 +1,13 @@
 # pip install httpx mutagen
+from enum import Enum
+
 import httpx
 import mimetypes
 import wave
 import io
 import os
+
+from Crypto.SelfTest.Cipher.test_CBC import file_name
 from mutagen.mp3 import MP3
 
 # WAV検証
@@ -50,7 +54,15 @@ def guess_mime_type(filename):
     mime, _ = mimetypes.guess_type(filename)
     return mime or "application/octet-stream"
 
+class ModeFiles(Enum):
+    NESTED = "dict"
+    LIST = "list"
+
+class Mode:
+    files = ModeFiles
+
 class ApiClientSync:
+    Mode = Mode
     def __init__(self, api_key: str, url="https://voiceprint.disnana.com/api", auto_refresh=False):
         self.url = url
         self.api_key = api_key
@@ -67,7 +79,16 @@ class ApiClientSync:
         def __init__(self, new_self):
             self.base_class = new_self
 
-        def upload(self, target_name:str, file_path: str):
+        def files(self, target_name: str = None, mode=Mode.files.NESTED):
+            url = f"{self.base_class.url}/files"
+            params = {"target_name": target_name} if target_name else {}
+            params["mode"] = mode.value
+            response = self.base_class.get_data(url, headers=self.base_class.headers, params=params)
+            return response
+
+        def upload(self, target_name:str, file_path: str, filename:str = None):
+            if file_name is None:
+                filename = os.path.basename(file_path)
             url = f"{self.base_class.url}/upload"
             # 拡張子判定
             ext = os.path.splitext(file_path)[1].lower()
@@ -95,7 +116,7 @@ class ApiClientSync:
 
             with open(file_path, 'rb') as f:
                 files = {
-                    "file": (os.path.basename(file_path), f.read(), mime_type)
+                    "file": (filename, f.read(), mime_type)
                 }
                 # post_dataはあなたのクラスインスタンスのメソッド
                 response = self.base_class.post_data(url, files=files, headers=self.base_class.headers, data={"target_name": target_name})
