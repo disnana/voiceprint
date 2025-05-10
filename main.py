@@ -259,6 +259,7 @@ class ApiClientSync:
 
 
 class ApiClientAsync:
+    Mode = Mode
     def __init__(self, api_key: str, url="https://voiceprint.disnana.com/api", auto_refresh=False):
         self.url = url
         self.api_key = api_key
@@ -268,6 +269,55 @@ class ApiClientAsync:
         self.headers = {"Authorization": f"Bearer {self.api_key}"}
         self.client = httpx.AsyncClient()
         self.auto_refresh_session = auto_refresh
+        self.VoiceprintService = self.VoiceprintService(self)
+
+    class VoiceprintService:
+        def __init__(self, new_self):
+            self.base_class = new_self
+
+        async def files(self, target_name: str = None, mode=Mode.files.NESTED):
+            url = f"{self.base_class.url}/files"
+            params = {"target_name": target_name} if target_name else {}
+            params["mode"] = mode.value
+            response = await self.base_class.get_data(url, headers=self.base_class.headers, params=params)
+            return response
+
+        async def upload(self, target_name: str, file_path: str, filename: str = None):
+            if filename is None:
+                filename = os.path.basename(file_path)
+            url = f"{self.base_class.url}/upload"
+            # 拡張子判定
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == ".wav":
+                valid, reason = check_wav(file_path)
+                if not valid:
+                    print(f"検証エラー: {reason}")
+                    return
+            elif ext == ".mp3":
+                valid, reason = check_mp3(file_path)
+                if not valid:
+                    print(f"検証エラー: {reason}")
+                    return
+            else:
+                print("wavかmp3のみ対応です")
+                return
+
+            # ファイルサイズチェック
+            if os.path.getsize(file_path) > 10 * 1024 * 1024:
+                print("ファイルサイズが10MBを超えています")
+                return
+
+            # 自動でMIMEタイプを指定
+            mime_type = guess_mime_type(file_path)
+
+            with open(file_path, 'rb') as f:
+                files = {
+                    "file": (filename, f.read(), mime_type)
+                }
+                # post_dataはあなたのクラスインスタンスのメソッド
+                response = await self.base_class.post_data(url, files=files, headers=self.base_class.headers,
+                                                     data={"target_name": target_name})
+            return response
 
     async def close(self):
         await self.client.aclose()
@@ -310,7 +360,7 @@ class ApiClientAsync:
             if response.status_code == 200:
                 self.session = response.cookies
                 return response.json()
-            else:
+            elif response.status_code == 403:
                 if self.auto_refresh_session:
                     if retly:
                         raise ApiClientTokenExpired("トークンの有効期限切れ・無効時")
@@ -325,6 +375,11 @@ class ApiClientAsync:
                     return None
                 else:
                     raise ApiClientHTTPError(response.status_code, response.text)
+            else:
+                if no_error:
+                    return None
+                else:
+                    raise ApiClientHTTPError(response.status_code, response.text)
 
     async def post_data(self, url, headers=None, params=None, timeout=10, content=None, files=None, data=None, json=None, no_error=False):
         retly = False
@@ -333,7 +388,7 @@ class ApiClientAsync:
             if response.status_code == 200:
                 self.session = response.cookies
                 return response.json()
-            else:
+            elif response.status_code == 403:
                 if self.auto_refresh_session:
                     if retly:
                         raise ApiClientTokenExpired("トークンの有効期限切れ・無効時")
@@ -344,6 +399,11 @@ class ApiClientAsync:
                             raise ApiClientTokenExpired("トークンの有効期限切れ・無効時")
                     retly = True
                     continue
+                if no_error:
+                    return None
+                else:
+                    raise ApiClientHTTPError(response.status_code, response.text)
+            else:
                 if no_error:
                     return None
                 else:
