@@ -6,8 +6,6 @@ import mimetypes
 import wave
 import io
 import os
-
-from Crypto.SelfTest.Cipher.test_CBC import file_name
 from mutagen.mp3 import MP3
 
 # WAV検証
@@ -87,7 +85,7 @@ class ApiClientSync:
             return response
 
         def upload(self, target_name:str, file_path: str, filename:str = None):
-            if file_name is None:
+            if filename is None:
                 filename = os.path.basename(file_path)
             url = f"{self.base_class.url}/upload"
             # 拡張子判定
