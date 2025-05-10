@@ -161,7 +161,7 @@ class ApiClientSync:
             if response.status_code == 200:
                 self.session = response.cookies
                 return response.json()
-            elif response.status_code == 401:
+            elif response.status_code == 403:
                 if self.auto_refresh_session:
                     if retly:
                         raise ApiClientTokenExpired("トークンの有効期限切れ・無効時")
@@ -191,7 +191,7 @@ class ApiClientSync:
             if response.status_code == 200:
                 self.session = response.cookies
                 return response.json()
-            elif response.status_code == 401:
+            elif response.status_code == 403:
                 if self.auto_refresh_session:
                     if retly:
                         raise ApiClientTokenExpired("トークンの有効期限切れ・無効時")
